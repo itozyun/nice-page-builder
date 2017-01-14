@@ -1,0 +1,29 @@
+{
+    "name": "nice-page-builder",
+    "displayName": "Nice Page Builder",
+    "description": "Static site generator on VSCode Extension.",
+    "version": "0.0.2",
+    "publisher": "itozyun",
+    "engines": {
+        "vscode": "^1.0.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onCommand:extension.nicePageBuilder"
+    ],
+    "main": "./extension",
+    "contributes": {
+        "commands": [{
+            "command": "extension.nicePageBuilder",
+            "title": "Nice Page Builder"
+        }]
+    },
+    "scripts": {
+        "postinstall": "node ./node_modules/vscode/bin/install"
+    },
+    "devDependencies": {
+        "vscode": "^0.11.0"
+    }
+}
