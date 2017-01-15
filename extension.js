@@ -1,32 +1,27 @@
 
 function activate(context) {
-    var MAX_TARGET_FILES = 1000, // https://github.com/Microsoft/vscode/issues/697
-
-        vscode  = require('vscode'),
-        fs      = require('fs'),
-        http    = require('http'),
+    var vscode  = require('vscode'),
         builder = require('./libs/NicePageBuilder.js'),
+        izFS    = require('./libs/izFS.js'),
         com     = vscode.commands.registerCommand('extension.nicePageBuilder',
 /* settings.json  
 {
     "nicePageBuilder.tasks" : [{
             "htmlRoot" : { "path" : "src", "exclude" : "" },
             "jsonList" : [
-                { "path" : "src/jsons/list.json", "name" : "list" },
-                { "path" : "http://hoge.jp/fuga.json", "name" : "hoge" }
+                { "path" : "src/jsons/list.json", "name" : "list" }, {} ...
             ],
             "output"   : "out"
     }]
 } */
     function(){
-        var ws         = vscode.workspace,
-            wsRootPath = ws.rootPath,
-            config     = ws.getConfiguration('nicePageBuilder'),
-            tasks, currentTask, currentTarget,
-            outpotFolderPath, targetFiles, targetFileUri, currentStatus, currentBuild,
-            jsonData, total, progress;
+        var ws     = vscode.workspace,
+            fs     = new izFS( ws.rootPath ),
+            config = ws.getConfiguration('nicePageBuilder'),
+            tasks, currentTask, total, progress = 0, iterator, imports,
+            created = 0;
 
-        if( !wsRootPath ){
+        if( !ws.rootPath ){
             vscode.window.showErrorMessage('Use of mainFile requires a folder to be opened');
             return;
         };
@@ -38,12 +33,12 @@ function activate(context) {
 
         try {
             tasks = JSON.parse(JSON.stringify(config.tasks)); // deep copy
+            total = tasks.length;
         } catch(o_O){
             vscode.window.showErrorMessage( '(T-T) ' + o_O + ' ...' );
             return;
         };
 
-        wsRootPath = wsRootPath.charAt( wsRootPath.length - 1 ) === '\\' ? wsRootPath.substr( 0, wsRootPath.length - 1 ) : wsRootPath;
         ws.saveAll();
         startTask();
 
@@ -51,180 +46,130 @@ function activate(context) {
         function startTask(){
             builder.reset();
 
-            if( tasks.length ){
+            if( progress < total ){
                 currentTask = tasks.shift();
                 if( currentTarget = currentTask.htmlRoot ){
-                    outpotFolderPath = currentTask.output.split( '/' ).join( '\\' );
-                    ws.findFiles(
-                        createPath( currentTarget.path, '**/*.htm*' ),
-                        currentTarget.exclude, MAX_TARGET_FILES ).then( onFilesFound );
+                    ++progress;
+                    fs.find({
+                        from     : currentTarget.path,
+                        include  : createPath( currentTarget.path, '**/*.htm*' ),
+                        exclude  : currentTarget.exclude,
+                        getText  : true
+                        }, findFileDispatcher );
                 } else {
-                    vscode.window.setStatusBarMessage( '(T-T) Not fonund "htmlRoot"!' );
+                    vscode.window.showErrorMessage( '(T-T) Not fonund "htmlRoot"!' );
                 };
-                return;
             } else {
-                vscode.window.setStatusBarMessage( '(^-^) All Tasks complete!' );
+                vscode.window.setStatusBarMessage( '[' + progress + '/' + total + '] (^-^) All Tasks complete!' );
             };
         };
 
-        function onFilesFound( files ){
-            if( total = files.length ){
-                files.sort();
-                progress    = -1;
-                targetFiles = files;
-                readFiles();
-            } else {
-                vscode.window.setStatusBarMessage( '(T-T) Files at "' + currentTarget.path + '" was not found.' );
-                return;
-            };
-        };
-        
-        // 2. Read .htm(l) files
-        function readFiles(){
-            if( targetFileUri = targetFiles.shift() ){
-                vscode.window.setStatusBarMessage( '[' + currentTarget.path + ']' + ( ++progress ) + '/' + total + ':reading' );
-                fs.stat( createPath( wsRootPath, ws.asRelativePath( targetFileUri ), '\\' ), onGotFileStatus );
-            } else {
-               vscode.window.setStatusBarMessage( 'Read html complete.' );
+        function findFileDispatcher( ite ){
+            switch( ite.type ){
+                case 'findFileSuccess' :
+                case 'readFileSuccess' :
+                    var res = builder.readHTML(
+                        '/' + ite.path.substr( createPath( currentTarget.path, '' ).length ),
+                        ite.data, ite.stats.birthtime.getTime(), ite.stats.mtime.getTime() );
 
-               readJson();
-            };
-        };
-
-        function onGotFileStatus( err, status ){
-            if( status ){
-                currentStatus = status;
-                ws.openTextDocument( targetFileUri ).then( onFileOpened );
-            } else {
-                vscode.window.setStatusBarMessage( '(T-T) ' + err );
-            };
-        };
-
-        function onFileOpened(d){
-            console.log( '>> ' + ws.asRelativePath( targetFileUri ).split( '\\' ).join( '/' ).substr( currentTarget.path.length ) );
-            try {
-                var res = builder.readHTML(
-                            ws.asRelativePath( targetFileUri ).split( '\\' ).join( '/' ).substr( currentTarget.path.length ),
-                            d.getText(), currentStatus.birthtime.getTime(), currentStatus.mtime.getTime() );
-                if( res && res.importFiles ){ // array.<URLString>
-                    while( res.importFiles.length ){
-                        targetFiles.push( createPath( wsRootPath + '\\' + currentTarget.path, res.importFiles.shift(), '\\' ) );
+                    vscode.window.setStatusBarMessage( '[' + progress + '/' + total + '] read HTML [' + ite.index + '/' + ite.length + ']' );
+                    
+                    if( res && res.importFiles && res.importFiles.length ){// array.<URLString>
+                        if( !imports ){
+                            imports  = [];
+                            iterator = ite;
+                        };
+                        while( res.importFiles.length ) imports.push( res.importFiles.shift() );
                     };
-                };
-                readFiles();
-            } catch(o_O){
-                vscode.window.showErrorMessage( '(T-T) ' + o_O + ' ...' );
+
+                    if( imports ){
+                        importFiles();
+                    } else {
+                        ite.next();
+                    };
+                    break;
+                case 'findFileError' :
+                case 'readFileError' :
+                    vscode.window.showErrorMessage( '(T-T) ' + ite.error );
+                    ( iterator || ite ).kill();
+                    break;
+                case 'findFileComplete' :
+                    startJsonTask();
+                    break;
             };
         };
 
-        // 3. Read JSON files
-        function readJson(){
-            if( currentTarget = currentTask.jsonList && currentTask.jsonList.shift() ){
-                if( 'http:/ https:'.indexOf( currentTarget.path.substr( 0, 6 ) ) !== -1 ){
-                    http.get( onGetRequestSuccess ).on( 'error', onGetRequestError );
-                } else {
-                    ws.openTextDocument( createPath( wsRootPath, currentTarget.path, '\\' ) ).then( onJsonOpened, onJsonRejected );
-                };
+        function importFiles(){
+            if( imports.length ){
+                fs.read({
+                    path    : createPath( currentTarget.path, imports.shift() ),
+                    getText : true
+                    }, findFileDispatcher );
+            } else {
+                iterator.next();
+                imports = iterator = null;
+            };
+        };
+
+        function startJsonTask(){
+            currentTarget = currentTask.jsonList && currentTask.jsonList.shift();
+
+            if( currentTarget ){
+                fs.read({
+                    path    : currentTarget.path,
+                    getText : true
+                    }, findJsonDispatcher );
             } else {
                 build();
             };
         };
 
-            function onGetRequestSuccess( res ){
-                currentTarget.body = '';
-                res.setEncoding( currentTarget.encode || 'utf8' );
-                res.on('data', onRequestData );
-                res.on('end' , onRequestEnd );
+        function findJsonDispatcher( ite ){
+            switch( ite.type ){
+                case 'readFileSuccess' :
+                    builder.readJSON( currentTarget.name, ite.data );
+                    startJsonTask();
+                    break;
+                case 'readFileError' :
+                    vscode.window.showErrorMessage( '(T-T) ' + e.error );
+                    break;
             };
-            function onRequestData( chunk ){ currentTarget.body += chunk; };
-            function onRequestEnd( res ){
-                builder.readJSON( currentTarget.name, currentTarget.body );
-                readJson();
-            };
-            function onGetRequestError( e ){
-                vscode.window.showErrorMessage( '(T-T) ' + e.message );
-            };
-
-        function onJsonOpened(d){
-            try {
-                builder.readJSON( currentTarget.name, d.getText() );
-                readJson();
-            } catch(o_O){
-                vscode.window.setStatusBarMessage( '(T-T) ' + o_O + ' ...' );
-            };
-        };
-
-        function onJsonRejected( reson ){
-            vscode.window.showErrorMessage( '(T-T) ' + reson + ' ...' );
         };
 
         // 4. build .html file
         function build(){
-            var folderPath = wsRootPath,
-                paths, path;
-console.log( 'build...' )
             try {
-                currentBuild = builder.build();
+                var currentBuild = builder.build();
             } catch(o_O){
                 vscode.window.setStatusBarMessage( '(T-T) ' + o_O + ' ...' );
                 return;
             };
 
             if( currentBuild ){
-                console.log( currentBuild.path )
-                path = currentBuild.path.split( '/' );
-                --path.length;
-                paths = ( outpotFolderPath + path.join( '/' ) ).split( '/' ).join( '\\' ).split( '\\' );
-
-                vscode.window.setStatusBarMessage( '[build]' + ( ++progress ) + '/' + total + ':[]' );
-
-                while( paths.length ){
-                    path = paths.shift();
-                    if( !path || path === '.' ){
-                        path = paths.shift();
-                    };
-                    folderPath += '\\' + path;
-                    try {
-                        // http://stackoverflow.com/questions/13696148/node-js-create-folder-or-use-existing
-                        // If you want a quick-and-dirty one liner, use this:
-                        fs.existsSync( folderPath ) || fs.mkdirSync( folderPath );
-                    } catch(e){
-                        vscode.window.showErrorMessage('(T-T). Failed to create folder [' + outpotFolderPath + ']' );
-                        return;
-                    };
-                };
-
-                fs.open( wsRootPath + '\\' + createPath( outpotFolderPath, currentBuild.path, '\\' ), 'w', onFileCreated );
+                vscode.window.setStatusBarMessage( '[' + progress + '/' + total + '] write [' + created + ']' );
+                fs.write( createPath( currentTask.output, currentBuild.path ), currentBuild.html, writeFileDispatcher );
             } else {
-                vscode.window.setStatusBarMessage( '(^-^) Task complete!' );
+                vscode.window.setStatusBarMessage( '[' + progress + '/' + total + '] (^-^) Task complete!' );
                 startTask();
             };
         };
 
-        function onFileCreated(err, fd){
-            var buffer;
-
-            if( 0 <= fd ){
-                buffer = new Buffer( currentBuild.html );
-                fs.writeSync( fd, buffer, 0, buffer.length );
-                fs.close(fd);
-                build();
-            } else {
-                vscode.window.setStatusBarMessage( '(T-T).. ' + err );
+        function writeFileDispatcher( e ){
+            switch( e.type ){
+                case 'writeFileSuccess' :
+                    ++created;
+                    build();
+                    break;
+                case 'writeFileError' :
+                    vscode.window.showErrorMessage( '(T-T) ' + e.error );
+                    break;
             };
         };
 
-        // utility
-        function createPath( root, path, opt_separator ){
-            var i = root.length - 1;
-
-            if( 0 <= i ){
-                root += root.charAt( i ) === '/' ? '' : '/';
-            } else {
-                root = '';
-            };
-            if( path.charAt( 0 ) === '/' ) path = path.substr( 1 );
-            return ( root + path ).split( '/' ).join( opt_separator || '/' );
+        function createPath( a, b ){
+            if( a.charAt( a.length - 1 ) === '/' ) a = a.substr( 0, a.length - 1 );
+            if( b.charAt( 0 ) === '/' ) b = b.substr( 1 );
+            return a + '/' + b;
         };
     });
 

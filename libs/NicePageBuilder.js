@@ -19,7 +19,7 @@ var pages, templetes, mixins, jsons, finished, extraPages,
     buildStated, skipAddToPages, createdByUserScript,
     Page, createPageClassNow;
 
-// TODO 継承して使う
+// 継承して使う
 function PageBase( path, createTime, updatedTime ){
   if( createPageClassNow ) return;
 
@@ -218,7 +218,7 @@ function mergeMixinsAndTemplete( page ){
  * 3. 書き出し
  */
 function build(){
-  var path, page, updated, tmpl, k, html;
+  var path, page, updated, tmpl, k, html, last;
   
   if( !buildStated ) beforeBuild();
 
@@ -242,16 +242,21 @@ function build(){
 
     // templete を使用する場合、コンテンツは page.CONTENT に存在する
     if( tmpl ) page.CONTENT = _execInlineScript( page, page.CONTENT );
-    html = _execInlineScript( page, html );
 
-    // ($ $) 相対リンクの解決
-    html = splitString( html, '($$', '$$)', function( link ){
-      // 前後の空白の除去
-      while(link.charAt(0) === ' ') link = link.substr(1);
-      while(link.charAt(link.length - 1) === ' ') link = link.substr(0,link.length - 1);
+    while( html !== last ){ // inlineScript が inlineScript を出力するケースに対応
+      html = _execInlineScript( page, html );
 
-      return toRelativePath( link, page.FOLDER_PATH );
-    } );
+      // ($ $) 相対リンクの解決
+      html = splitString( html, '($$', '$$)', function( link ){
+        // 前後の空白の除去
+        while(link.charAt(0) === ' ') link = link.substr(1);
+        while(link.charAt(link.length - 1) === ' ') link = link.substr(0,link.length - 1);
+
+        return toRelativePath( link, page.FOLDER_PATH );
+      } );
+
+      last = html;
+    };
 
     return { path : path, html : html };
   };
