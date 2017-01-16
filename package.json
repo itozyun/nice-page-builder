@@ -28,11 +28,14 @@
     "contributes": {
         "commands": [{
             "command": "extension.nicePageBuilder",
-            "title": "Nice Page Builder"
+            "title": "Build Nice Page"
         }]
     },
     "scripts": {
         "postinstall": "node ./node_modules/vscode/bin/install"
+    },
+    "dependencies" : {
+        "minimatch": ">0.0.0"
     },
     "devDependencies": {
         "vscode": "^0.11.0"

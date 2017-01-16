@@ -179,7 +179,7 @@ function read( options, callback ){
 
 function write( path, bufferOrString, callback ){
     var context = this,
-        pathElements, targetFolderDepth, existFolderDepth;
+        pathElements, targetFolderDepth, existFolderDepth, openFileID;
 
 /** File の存在確認 */
     fs.exists( context.createPath( path ), onExist );
@@ -239,11 +239,20 @@ function write( path, bufferOrString, callback ){
         if( err ){
             error( err );
         } else {
+            openFileID = fd;
             fs.write( fd, bufferOrString, 0, bufferOrString.length, onWrite );
         };
     };
 
     function onWrite( err ){
+        if( err ){
+            error( err );
+        } else {
+            fs.close( openFileID, onClose );
+        };
+    };
+
+    function onClose( err ){
         if( err ){
             error( err );
         } else {

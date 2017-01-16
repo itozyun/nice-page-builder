@@ -1,5 +1,7 @@
 
 function activate(context) {
+    "use strict";
+
     var vscode  = require('vscode'),
         builder = require('./libs/NicePageBuilder.js'),
         izFS    = require('./libs/izFS.js'),
@@ -18,7 +20,7 @@ function activate(context) {
         var ws     = vscode.workspace,
             fs     = new izFS( ws.rootPath ),
             config = ws.getConfiguration('nicePageBuilder'),
-            tasks, currentTask, total, progress = 0, iterator, imports,
+            tasks, currentTask, currentTarget, total, progress = 0, iterator, imports,
             created = 0;
 
         if( !ws.rootPath ){
