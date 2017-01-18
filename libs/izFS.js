@@ -2,7 +2,7 @@
 (function (root, factory) {
   if (typeof define === 'function' && define.amd) {
     // AMD
-    define(['fs','minimatch'], factory);
+    define(['fs','minimatch','path'], factory);
   } else if (typeof exports === 'object') {
     // commonjs
     module.exports = factory();
@@ -10,7 +10,7 @@
     // Browser globals
     root[ 'izFS' ] = factory;
   };
-})(this, function (fs, minimatch) {
+})(this, function (fs, minimatch, path) {
 
 "use strict";
 
@@ -19,10 +19,12 @@ if (typeof define === 'function' && define.amd) {
 } else if (typeof exports === 'object') {
     // commonjs
     fs        = require( 'fs' );
+    path      = require( 'path' );
     minimatch = require( 'minimatch' );
 } else {
     // Browser globals
     fs        = this.fs;
+    path      = this.path;
     minimatch = this.minimatch;
 };
 
@@ -39,20 +41,20 @@ izFS.prototype.createPath = createPath;
 function find( options, callback ){
     var context         = this,
         filesAndFolders = [],
-        currentPath     = options.from || '',
+        currentPath     = options.rootPath || '',
         index           = -1,
         targetFile, killed;
 
     fs.readdir( context.createPath( currentPath ), onReadDir );
 
     function onReadDir( err, list ){
-        var path;
+        var p;
 
         if( !killed ){
             if( err ){
                 error( err );
             } else {
-                while( path = list.shift() ) filesAndFolders.push( currentPath + ( currentPath ? '/' : '' ) + path );
+                while( p = list.shift() ) filesAndFolders.push( path.join( currentPath, p ) );
                 next();
             };
         };
@@ -70,23 +72,29 @@ function find( options, callback ){
     };
 
     function openFileDispatcher( e ){
+        if( killed ) return;
+
         switch( e.type ){
             case 'readFileSuccess' :
                 if( e.stats.isDirectory() ){
-                    fs.readdir( context.createPath( currentPath ), onReadDir );
-                } else if( minimatch( currentPath, options.include ) &&
-                    ( !options.exclude || !minimatch( currentPath, options.exclude ) )
+                    if( !options.exclude || !minimatch( e.path, options.exclude ) ){
+                        fs.readdir( context.createPath( e.path ), onReadDir );
+                    } else {
+                        next();
+                    };
+                } else if( minimatch( e.path, options.include ) &&
+                    ( !options.exclude || !minimatch( e.path, options.exclude ) )
                 ){
                     var obj = {
                         type   : 'findFileSuccess',
-                        path   : currentPath,
+                        path   : convertSeparator( e.path ),
                         stats  : e.stats,
                         index  : index,
                         length : filesAndFolders.length,
-                        next   : next, kill : kill, push : push
+                        next   : next, kill : kill
                     };
                     if( options.getText ) obj.data = e.data;
-                    !killed && callback( obj );
+                    callback( obj );
                 } else {
                     next();
                 };
@@ -97,15 +105,11 @@ function find( options, callback ){
         };
     };
 
-    function push( path ){
-        filesAndFolders.indexOf( path ) === -1 && filesAndFolders.push( path );
-    };
-
 /**
  * 
  */
     function error( err ){
-        callback( { type : 'findFileError', error : err, next : next, kill : kill, push : push } );
+        callback( { type : 'findFileError', error : err, next : next, kill : kill } );
     };
 
     function kill(){
@@ -121,16 +125,16 @@ function find( options, callback ){
     };
 };
 
-function createPath( path ){
-    var root = this._rootPath;
-    if( root.charAt( root.length - 1 ) === '/' ) root = root.substr( 0, root.length - 1 );
-    if( path.charAt( 0 ) === '/' ) path = path.substr( 1 );
-    return ( root + '/' + path ).split( '/' ).join( '\\' );
+// TODO require('path')
+function createPath( p ){
+    if( path.isAbsolute( p ) ) return path.normalize( p );
+    return path.join( this._rootPath, p );
 };
 
 function read( options, callback ){
     var context = this, targetFile;
 
+    //console.log(context.createPath( options.path ))
     fs.stat( context.createPath( options.path ), onStat );
 
     function onStat( err, stats ){
@@ -143,7 +147,7 @@ function read( options, callback ){
                 onReadFileSuccess();
             } else
             if( options.getText ){
-                fs.readFile( context.createPath( options.path ), onReadFile );
+                fs.readFile( context.createPath( options.path ), 'utf8', onReadFile );
             } else {
                 onReadFileSuccess();
             };
@@ -163,7 +167,7 @@ function read( options, callback ){
     function onReadFileSuccess(){
         var obj = {
             type   : 'readFileSuccess',
-            path   : targetFile.path,
+            path   : convertSeparator( targetFile.path ),
             stats  : targetFile.stats
         };
         if( targetFile.data ) obj.data = targetFile.data.toString();
@@ -177,19 +181,18 @@ function read( options, callback ){
 };
 
 
-function write( path, bufferOrString, callback ){
+function write( p, bufferOrString, callback ){
     var context = this,
         pathElements, targetFolderDepth, existFolderDepth, openFileID;
 
 /** File の存在確認 */
-    fs.exists( context.createPath( path ), onExist );
+    fs.exists( context.createPath( p ), onExist );
 
     function onExist( exist ){
         if( exist ){
             createFile();
         } else {
-            pathElements = path.split( '/' );
-            pathElements.pop();
+            pathElements = path.dirname( p ).split( path.sep );
             targetFolderDepth = existFolderDepth = pathElements.length;
             checkFolderExist();
         };
@@ -232,7 +235,7 @@ function write( path, bufferOrString, callback ){
 
 /** File の存在確認 */
     function createFile(){
-        fs.open( context.createPath( path ), 'w', onFileCreate );
+        fs.open( context.createPath( p ), 'w', onFileCreate );
     };
 
     function onFileCreate( err, fd ){
@@ -240,7 +243,11 @@ function write( path, bufferOrString, callback ){
             error( err );
         } else {
             openFileID = fd;
-            fs.write( fd, bufferOrString, 0, bufferOrString.length, onWrite );
+            if( typeof bufferOrString === 'string' ){
+                fs.write( fd, bufferOrString, 0, 'utf8', onWrite );
+            } else {
+                fs.write( fd, bufferOrString, 0, bufferOrString.length, onWrite );
+            };
         };
     };
 
@@ -269,6 +276,10 @@ function write( path, bufferOrString, callback ){
     function reset(){
         context = bufferOrString = callback = null;
     };
+};
+
+function convertSeparator( p ){
+    return p.split( '\\' ).join( '/' );
 };
 
 return izFS;

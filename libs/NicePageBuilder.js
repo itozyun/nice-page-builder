@@ -244,6 +244,7 @@ function build(){
     if( tmpl ) page.CONTENT = _execInlineScript( page, page.CONTENT );
 
     while( html !== last ){ // inlineScript が inlineScript を出力するケースに対応
+      last = html;
       html = _execInlineScript( page, html );
 
       // ($ $) 相対リンクの解決
@@ -254,8 +255,6 @@ function build(){
 
         return toRelativePath( link, page.FOLDER_PATH );
       } );
-
-      last = html;
     };
 
     return { path : path, html : html };

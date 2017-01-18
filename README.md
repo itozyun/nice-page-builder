@@ -25,12 +25,12 @@ VS Code エクステンションの静的サイトジェネレータです。
 ~~~json
 {
     "nicePageBuilder.tasks" : [{
-            "htmlRoot" : { "path" : "source", "exclude" : "" },
+            "htmlRoot" : { "rootPath" : "source", "include" : "", "exclude" : "" },
             "jsonList" : [
                 { "path" : "jsons/comment.json", "name" : "comment" },
                 { "path" : "jsons/tweet.json",   "name" : "tweet"   }
             ],
-            "output"   : "output"
+            "output"   : "R:/output"
     }]
 }
 ~~~

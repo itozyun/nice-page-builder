@@ -53,8 +53,8 @@ function activate(context) {
                 if( currentTarget = currentTask.htmlRoot ){
                     ++progress;
                     fs.find({
-                        from     : currentTarget.path,
-                        include  : createPath( currentTarget.path, '**/*.htm*' ),
+                        rootPath : currentTarget.rootPath,
+                        include  : currentTarget.include || createPath( currentTarget.rootPath, '**/*.htm*' ),
                         exclude  : currentTarget.exclude,
                         getText  : true
                         }, findFileDispatcher );
@@ -71,7 +71,7 @@ function activate(context) {
                 case 'findFileSuccess' :
                 case 'readFileSuccess' :
                     var res = builder.readHTML(
-                        '/' + ite.path.substr( createPath( currentTarget.path, '' ).length ),
+                        '/' + ite.path.substr( createPath( currentTarget.rootPath, '' ).length ),
                         ite.data, ite.stats.birthtime.getTime(), ite.stats.mtime.getTime() );
 
                     vscode.window.setStatusBarMessage( '[' + progress + '/' + total + '] read HTML [' + ite.index + '/' + ite.length + ']' );
@@ -104,7 +104,7 @@ function activate(context) {
         function importFiles(){
             if( imports.length ){
                 fs.read({
-                    path    : createPath( currentTarget.path, imports.shift() ),
+                    path    : createPath( currentTarget.rootPath, imports.shift() ),
                     getText : true
                     }, findFileDispatcher );
             } else {
@@ -133,7 +133,7 @@ function activate(context) {
                     startJsonTask();
                     break;
                 case 'readFileError' :
-                    vscode.window.showErrorMessage( '(T-T) ' + e.error );
+                    vscode.window.showErrorMessage( '(T-T) ' + ite.error );
                     break;
             };
         };
