@@ -21,7 +21,7 @@ function activate(context) {
             fs     = new izFS( ws.rootPath ),
             config = ws.getConfiguration('nicePageBuilder'),
             tasks, currentTask, currentTarget, total, progress = 0, iterator, imports,
-            created = 0;
+            created = 0, skiped = 0;
 
         if( !ws.rootPath ){
             vscode.window.showErrorMessage('Use of mainFile requires a folder to be opened');
@@ -148,8 +148,12 @@ function activate(context) {
             };
 
             if( currentBuild ){
-                vscode.window.setStatusBarMessage( '[' + progress + '/' + total + '] write [' + created + ']' );
-                fs.write( createPath( currentTask.output, currentBuild.path ), currentBuild.html, writeFileDispatcher );
+                vscode.window.setStatusBarMessage( '[' + progress + '/' + total + '] write [' + created + '] skiped [' + skiped + ']' );
+                fs.write({
+                    path       : createPath( currentTask.output, currentBuild.path ),
+                    string     : currentBuild.html,
+                    writeIfOld : currentBuild.updatedAt
+                }, writeFileDispatcher );
             } else {
                 vscode.window.setStatusBarMessage( '[' + progress + '/' + total + '] (^-^) Task complete!' );
                 startTask();
@@ -160,6 +164,7 @@ function activate(context) {
             switch( e.type ){
                 case 'writeFileSuccess' :
                     ++created;
+                    if( e.skiped ) ++skiped;
                     build();
                     break;
                 case 'writeFileError' :

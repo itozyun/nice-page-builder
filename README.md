@@ -1,5 +1,7 @@
 # Nice Page builder
 
+![](https://4.bp.blogspot.com/-_jS4oD7mDQ8/WJFq8Z7sZ-I/AAAAAAAARP0/SJJHoRWJ37cwdBuO2pvuHQ_rY3GI1nIHQCLcB/s800/NicePageBuilder_package.jpg "")
+
 Static site generator of Visual Studio Code extension.
 
 VS Code エクステンションの静的サイトジェネレータです。
@@ -14,6 +16,7 @@ VS Code エクステンションの静的サイトジェネレータです。
 4. Rewrite pages or add new pages based on aggregation of pages
 5. Rewrite pages or add new pages based on JSON files
 
+---
 
 1. テンプレートからhtmlを生成します
 2. 複数のページで共有される共通データを外部ファイルに分ける
@@ -34,6 +37,8 @@ VS Code エクステンションの静的サイトジェネレータです。
     }]
 }
 ~~~
+
+
 
 ### For more information
 * [Nice Page Builderをブログ書きながらテストしていったよ](http://outcloud.blogspot.jp/2016/12/npb-test.html)

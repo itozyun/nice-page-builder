@@ -127,27 +127,31 @@ function find( options, callback ){
 
 // TODO require('path')
 function createPath( p ){
+    // fix for path.isAbsolute( 'R:' ) -> false.
+    if( p.split( '' ).pop() === ':' ) return path.normalize( p );
     if( path.isAbsolute( p ) ) return path.normalize( p );
     return path.join( this._rootPath, p );
 };
 
 function read( options, callback ){
-    var context = this, targetFile;
+    var context = this,
+        p       = options.path,
+        getText = options.getText,
+        targetFile;
 
-    //console.log(context.createPath( options.path ))
-    fs.stat( context.createPath( options.path ), onStat );
+    fs.stat( context.createPath( p ), onStat );
 
     function onStat( err, stats ){
         if( err ){
             callback( { type : 'readFileError', error : err } );
             reset();
         } else {
-            targetFile = { path : options.path, stats : stats };
+            targetFile = { path : p, stats : stats };
             if( stats.isDirectory() ){
                 onReadFileSuccess();
             } else
-            if( options.getText ){
-                fs.readFile( context.createPath( options.path ), 'utf8', onReadFile );
+            if( getText ){
+                fs.readFile( context.createPath( p ), 'utf8', onReadFile );
             } else {
                 onReadFileSuccess();
             };
@@ -181,8 +185,11 @@ function read( options, callback ){
 };
 
 
-function write( p, bufferOrString, callback ){
-    var context = this,
+function write( options, callback ){
+    var p              = options.path,
+        bufferOrString = options.string || options.buffer,
+        writeIfOld     = options.writeIfOld,
+        context        = this,
         pathElements, targetFolderDepth, existFolderDepth, openFileID;
 
 /** File の存在確認 */
@@ -190,9 +197,9 @@ function write( p, bufferOrString, callback ){
 
     function onExist( exist ){
         if( exist ){
-            createFile();
+            typeof writeIfOld === 'number' ? context.read( { path : p }, onFileReadDispatcher ) : createFile();
         } else {
-            pathElements = path.dirname( p ).split( path.sep );
+            pathElements = path.dirname( p ).split( '/' );//path.sep );
             targetFolderDepth = existFolderDepth = pathElements.length;
             checkFolderExist();
         };
@@ -232,6 +239,24 @@ function write( p, bufferOrString, callback ){
         };
         return context.createPath( ary.join( '/' ) );
     };
+
+/** File の作られた日時の確認 */
+    function onFileReadDispatcher( e ){
+        switch( e.type ){
+            case 'readFileSuccess' :
+                if( e.stats.mtime.getTime() < writeIfOld ){
+                    createFile();
+                } else {
+                    callback( { type : 'writeFileSuccess', skiped : true } );
+                    reset();
+                };
+                break;
+            case 'readFileError' :
+                error( e.error );
+                break;
+        };
+    };
+    
 
 /** File の存在確認 */
     function createFile(){

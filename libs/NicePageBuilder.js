@@ -28,8 +28,9 @@ function PageBase( path, createTime, updatedTime ){
   this.FILE_PATH   = path;
   this.FILE_NAME   = ary.pop();
   this.FOLDER_PATH = ary.join('/');
-  this.CREATED_AT  = createTime;
-  this.UPDATED_AT  = updatedTime;
+  this.CREATED_AT  = createTime   || (new Date).getTime();
+  this.MODIFIED_AT = updatedTime  || (new Date).getTime();
+  this.UPDATED_AT  = updatedTime  || (new Date).getTime();
 
   if( skipAddToPages ){
     skipAddToPages = false;
@@ -94,7 +95,8 @@ function readHTML(path, htmlString, createTime, updatedTime ){
   if( mixins[ path ] ){
     mixin = eval('(' + htmlString + ')');
     if( typeof mixin === 'object' ){
-      mixins[ path ] = mixin;
+      mixins[ path ]   = mixin;
+      mixin.UPDATED_AT = updatedTime;
     } else {
       throw 'MIXIN:' + path + ' is invalid js!';
     };
@@ -197,20 +199,27 @@ function beforeBuild(){
 };
 
 function mergeMixinsAndTemplete( page ){
-  var _mixins, mixin, k, tmpl;
+  var i = -1, _mixins, path, mixin, k, tmpl;
 
   if( _mixins = page.MIXINS ){
-      while( mixin = _mixins.shift() ){
-        mixin = mixins[ mixin ];
-        for( k in mixin ) if( !( k in page ) ) page[k] = mixin[k];
+      while( path = _mixins[ ++i ] ){
+        path  = toProjectRootRelativePath( path, page.FOLDER_PATH );
+        mixin = mixins[ path ];
+        mixin && mix( mixin );
       };
   };
-  if( tmpl = page.TEMPLETE ){
-    if( tmpl = templetes[ tmpl ] ){
-      for( k in tmpl ) if( !( k in page ) ) page[k] = tmpl[k];
+  if( path = page.TEMPLETE ){
+    path = toProjectRootRelativePath( path, page.FOLDER_PATH );
+    if( tmpl = templetes[ path ] ){
+      mix( tmpl );
     } else {
       throw 'TEMPLETE:' + tmpl + ' not found!';
     };
+  };
+
+  function mix( obj, k ){
+      for( k in obj ) if( !( k in page ) ) page[k] = obj[k];
+      if( page.UPDATED_AT < obj.UPDATED_AT ) page.UPDATED_AT = obj.UPDATED_AT;
   };
 };
 
@@ -241,7 +250,7 @@ function build(){
     finished[ path ] = true;
 
     // templete を使用する場合、コンテンツは page.CONTENT に存在する
-    if( tmpl ) page.CONTENT = _execInlineScript( page, page.CONTENT );
+    // if( tmpl ) page.CONTENT = _execInlineScript( page, page.CONTENT );
 
     while( html !== last ){ // inlineScript が inlineScript を出力するケースに対応
       last = html;
@@ -257,7 +266,7 @@ function build(){
       } );
     };
 
-    return { path : path, html : html };
+    return { path : path, html : html, updatedAt : page.UPDATED_AT };
   };
 };
 
