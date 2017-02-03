@@ -186,7 +186,11 @@ function beforeBuild(){
 
     createdByUserScript = true;
     while( obj = onBeforeBuildFunctions.shift() ){
-      ( new Function( 'pages, Page, page', obj.funcitonString ) ).call( obj.context, pages, Page, obj.context );
+      try {
+        ( new Function( 'pages, Page, page', obj.funcitonString ) ).call( obj.context, pages, Page, obj.context );
+      } catch(o_O){
+        throw o_O + '\n' + obj.funcitonString.replace( /\s/g, '' );
+      };
     };
     createdByUserScript = false;
 
