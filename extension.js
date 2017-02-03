@@ -67,12 +67,19 @@ function activate(context) {
         };
 
         function findFileDispatcher( ite ){
+            var res;
+
             switch( ite.type ){
                 case 'findFileSuccess' :
                 case 'readFileSuccess' :
-                    var res = builder.readHTML(
-                        '/' + ite.path.substr( createPath( currentTarget.rootPath, '' ).length ),
-                        ite.data, ite.stats.birthtime.getTime(), ite.stats.mtime.getTime() );
+                    try {
+                        res = builder.readHTML(
+                            '/' + ite.path.substr( createPath( currentTarget.rootPath, '' ).length ),
+                            ite.data, ite.stats.birthtime.getTime(), ite.stats.mtime.getTime() );
+                    } catch( o_O ){
+                        vscode.window.showErrorMessage( '(T-T) ' + o_O );
+                        return;
+                    };
 
                     vscode.window.setStatusBarMessage( '[' + progress + '/' + total + '] read HTML [' + ite.index + '/' + ite.length + ']' );
                     
@@ -129,7 +136,12 @@ function activate(context) {
         function findJsonDispatcher( ite ){
             switch( ite.type ){
                 case 'readFileSuccess' :
-                    builder.readJSON( currentTarget.name, ite.data );
+                    try {
+                        builder.readJSON( currentTarget.name, ite.data );
+                    } catch( o_O ){
+                        vscode.window.showErrorMessage( '(T-T) ' + o_O );
+                        return;
+                    };
                     startJsonTask();
                     break;
                 case 'readFileError' :
