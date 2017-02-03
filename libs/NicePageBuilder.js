@@ -93,7 +93,7 @@ function readHTML(path, htmlString, createTime, updatedTime ){
   var mixin, ary, page, ret = [], i = -1;
 
   if( mixins[ path ] ){
-    mixin = eval('(' + htmlString + ')');
+    mixin = toObjectByEval( htmlString );
     if( typeof mixin === 'object' ){
       mixins[ path ]   = mixin;
       mixin.UPDATED_AT = updatedTime;
@@ -125,7 +125,7 @@ function readHTML(path, htmlString, createTime, updatedTime ){
  
     // <script type="nice-page-builder/object" for="page-option"></script> の評価
     htmlString = splitString( htmlString, '<script type="nice-page-builder/object" for="page-option">', '</script>', function( code ){
-        var obj = eval('(' + code + ')'), k;
+        var obj = toObjectByEval( code ), k;
 
         for(k in obj) if(!(k in page)) page[k] = obj[k];
         return '';
@@ -164,7 +164,7 @@ function readHTML(path, htmlString, createTime, updatedTime ){
 };
 
 function readJSON( name, jsonString ){
-    var json = eval('(' + jsonString + ')');
+    var json = toObjectByEval( jsonString );
 
     if( typeof json === 'object' ){
       jsons[ name ] = json;
@@ -276,8 +276,20 @@ function _execInlineScript(page, str){
     //console.log( code )
       code = code.split( '\n' ).join( '' );
       //console.log( code )
-      return ( new Function( 'page,code', 'return function(){return eval(code)}.call(page)' ) ).call( page, page, code );
+      try {
+        return ( new Function( 'page,code', 'return function(){return eval(code)}.call(page)' ) ).call( page, page, code );
+      } catch(o_O){
+        throw o_O + '\n' + code.replace( /\s/g, '' );
+      };
   } );
+};
+
+function toObjectByEval( jsonString ){
+    try {
+      return eval('(' + jsonString + ')');
+    } catch(o_O){
+      throw o_O + '\n' + jsonString.replace( /\s/g, '' );
+    };
 };
 
 /************************************************************

@@ -37,7 +37,7 @@ function activate(context) {
             tasks = JSON.parse(JSON.stringify(config.tasks)); // deep copy
             total = tasks.length;
         } catch(o_O){
-            vscode.window.showErrorMessage( '(T-T) ' + o_O + ' ...' );
+            vscode.window.showErrorMessage( '(T-T) ' + o_O );
             return;
         };
 
@@ -143,7 +143,7 @@ function activate(context) {
             try {
                 var currentBuild = builder.build();
             } catch(o_O){
-                vscode.window.setStatusBarMessage( '(T-T) ' + o_O + ' ...' );
+                vscode.window.showErrorMessage( '(T-T) ' + o_O );
                 return;
             };
 

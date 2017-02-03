@@ -2,7 +2,7 @@
 
 ![](https://4.bp.blogspot.com/-_jS4oD7mDQ8/WJFq8Z7sZ-I/AAAAAAAARP0/SJJHoRWJ37cwdBuO2pvuHQ_rY3GI1nIHQCLcB/s800/NicePageBuilder_package.jpg "")
 
-Static site generator of Visual Studio Code extension.
+Static site generator on Visual Studio Code extension.
 
 VS Code エクステンションの静的サイトジェネレータです。
 
@@ -38,9 +38,11 @@ VS Code エクステンションの静的サイトジェネレータです。
 }
 ~~~
 
+## Links
 
+[Visual Studio Marketplace > Nice Page Builder](https://marketplace.visualstudio.com/items?itemName=itozyun.nice-page-builder)
 
-### For more information
+## For more information
 * [Nice Page Builderをブログ書きながらテストしていったよ](http://outcloud.blogspot.jp/2016/12/npb-test.html)
 * [Nice Page Builderのマニュアル](http://outcloud.blogspot.jp/2016/12/npb-manual.html)
 
