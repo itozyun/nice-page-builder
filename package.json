@@ -2,7 +2,7 @@
     "name": "nice-page-builder",
     "displayName": "Nice Page Builder",
     "description": "Static site generator on VSCode Extension.",
-    "version": "0.0.10",
+    "version": "0.0.11",
     "publisher": "itozyun",
     "icon": "icon.png",
     "galleryBanner": {

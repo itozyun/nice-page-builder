@@ -16,7 +16,7 @@
 
 var pages, templetes, mixins, jsons, finished, extraPages,
     onBeforeBuildFunctions,
-    buildStated, skipAddToPages, createdByUserScript,
+    buildStarted, skipAddToPages, createdByUserScript,
     Page, createPageClassNow;
 
 // 継承して使う
@@ -51,7 +51,12 @@ PageBase.prototype.toRelativePath = function( path ){
 };
 
 PageBase.prototype.getPage = function( path ){
-  return pages[ toProjectRootRelativePath( path, this.FOLDER_PATH ) ];
+  path = toProjectRootRelativePath( path, this.FOLDER_PATH );
+  
+  if( path.charAt( path.length - 1 ) === '/' ){
+    return pages[ path + 'index.html' ];
+  };
+  return pages[ path ];
 };
 
 PageBase.prototype.getJSON = function( name ){
@@ -72,7 +77,7 @@ function reset(){
   jsons      = {};
   finished   = {};
   onBeforeBuildFunctions = [];
-  buildStated = false;
+  buildStarted = false;
 
   Page = function(){ PageBase.apply(this, arguments); };
 
@@ -160,7 +165,7 @@ function readHTML(path, htmlString, createTime, updatedTime ){
       };
     };
   };
-  return ret.length ? { importFiles : ret } : undefined;
+  return { importFiles : ret };
 };
 
 function readJSON( name, jsonString ){
@@ -199,7 +204,7 @@ function beforeBuild(){
         pages[ path ] = extraPages[ path ];
     };
 
-    buildStated = true;
+    buildStarted = true;
 };
 
 function mergeMixinsAndTemplete( page ){
@@ -233,7 +238,7 @@ function mergeMixinsAndTemplete( page ){
 function build(){
   var path, page, updated, tmpl, k, html, last;
   
-  if( !buildStated ) beforeBuild();
+  if( !buildStarted ) beforeBuild();
 
   for( path in pages ){
     page = pages[ path ];
