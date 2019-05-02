@@ -28,6 +28,7 @@ function PageBase( path, createTime, updatedTime ){
   this.FILE_PATH   = path;
   this.FILE_NAME   = ary.pop();
   this.FOLDER_PATH = ary.join('/');
+  this.URL         = this.FILE_NAME === 'index.html' ? this.FOLDER_PATH + '/' : path;
   this.CREATED_AT  = createTime   || (new Date).getTime();
   this.MODIFIED_AT = updatedTime  || (new Date).getTime();
   this.UPDATED_AT  = updatedTime  || (new Date).getTime();
