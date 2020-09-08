@@ -41,9 +41,16 @@ izFS.prototype.createPath = createPath;
 function find( options, callback ){
     var context         = this,
         filesAndFolders = [],
-        currentPath     = options.rootPath || '',
+        pathList        = options.rootPath || [ '' ],
         index           = -1,
-        targetFile, killed;
+        currentPath, killed;
+
+    if( typeof pathList === 'string' ){
+        currentPath = pathList;
+        pathList    = [];
+    } else {
+        currentPath = pathList.shift();
+    };
 
     fs.readdir( context.createPath( currentPath ), onReadDir );
 
@@ -54,7 +61,9 @@ function find( options, callback ){
             if( err ){
                 error( err );
             } else {
-                while( p = list.shift() ) filesAndFolders.push( path.join( currentPath, p ) );
+                while( p = list.shift() ){
+                    filesAndFolders.push( path.join( currentPath, p ) );
+                };
                 next();
             };
         };
@@ -62,8 +71,12 @@ function find( options, callback ){
 
     function next(){
         if( !killed ){
-            if( currentPath = filesAndFolders[ ++index ] ){
-                context.read( { path : currentPath, getText : options.getText }, openFileDispatcher );
+            if( currentPath = filesAndFolders[ index + 1 ] ){
+                ++index;
+                context.read( { path : currentPath, getText : options.getText }, openFileDispatcher ); 
+            } else
+            if( currentPath = pathList.shift() ){
+                context.read( { path : currentPath, getText : options.getText }, openFileDispatcher ); 
             } else {
                 callback( { type : 'findFileComplete' } );
                 reset();
@@ -72,17 +85,22 @@ function find( options, callback ){
     };
 
     function openFileDispatcher( e ){
+        var fileName;
+
         if( killed ) return;
 
         switch( e.type ){
             case 'readFileSuccess' :
+                fileName = e.path.split( '/' ).pop();
+                // e.stats.isDirectory() || console.log( minimatch( fileName, options.include ) );
                 if( e.stats.isDirectory() ){
                     if( !options.exclude || !minimatch( e.path, options.exclude ) ){
                         fs.readdir( context.createPath( e.path ), onReadDir );
                     } else {
                         next();
                     };
-                } else if( minimatch( e.path, options.include ) &&
+                } else if(
+                    ( !options.include || minimatch( e.path, options.include ) ) &&
                     ( !options.exclude || !minimatch( e.path, options.exclude ) )
                 ){
                     var obj = {
@@ -121,11 +139,10 @@ function find( options, callback ){
     };
 
     function reset(){
-        context = options = callback = filesAndFolders = targetFile = null;
+        context = options = callback = filesAndFolders = null;
     };
 };
 
-// TODO require('path')
 function createPath( p ){
     // fix for path.isAbsolute( 'R:' ) -> false.
     if( p.split( '' ).pop() === ':' ) return path.normalize( p );
@@ -134,24 +151,22 @@ function createPath( p ){
 };
 
 function read( options, callback ){
-    var context = this,
-        p       = options.path,
-        getText = options.getText,
-        targetFile;
+    var context = this, targetFile;
 
-    fs.stat( context.createPath( p ), onStat );
+    //console.log(context.createPath( options.path ))
+    fs.stat( context.createPath( options.path ), onStat );
 
     function onStat( err, stats ){
         if( err ){
             callback( { type : 'readFileError', error : err } );
             reset();
         } else {
-            targetFile = { path : p, stats : stats };
+            targetFile = { path : options.path, stats : stats };
             if( stats.isDirectory() ){
                 onReadFileSuccess();
             } else
-            if( getText ){
-                fs.readFile( context.createPath( p ), 'utf8', onReadFile );
+            if( options.getText ){
+                fs.readFile( context.createPath( options.path ), 'utf8', onReadFile );
             } else {
                 onReadFileSuccess();
             };
@@ -169,13 +184,12 @@ function read( options, callback ){
     };
 
     function onReadFileSuccess(){
-        var obj = {
-            type   : 'readFileSuccess',
-            path   : convertSeparator( targetFile.path ),
-            stats  : targetFile.stats
-        };
-        if( targetFile.data ) obj.data = targetFile.data.toString();
-        callback( obj );
+        callback( {
+            type  : 'readFileSuccess',
+            path  : convertSeparator( targetFile.path ),
+            stats : targetFile.stats,
+            data  : targetFile.data ? targetFile.data.toString() : ''
+        } );
         reset();
     };
 
@@ -186,20 +200,20 @@ function read( options, callback ){
 
 
 function write( options, callback ){
-    var p              = options.path,
+    var _path          = options.path,
         bufferOrString = options.string || options.buffer,
         writeIfOld     = options.writeIfOld,
         context        = this,
         pathElements, targetFolderDepth, existFolderDepth, openFileID;
 
 /** File の存在確認 */
-    fs.exists( context.createPath( p ), onExist );
+    fs.exists( context.createPath( _path ), onExist );
 
     function onExist( exist ){
         if( exist ){
-            typeof writeIfOld === 'number' ? context.read( { path : p }, onFileReadDispatcher ) : createFile();
+            typeof writeIfOld === 'number' ? context.read( { path : _path }, onReadFile ) : createFile();
         } else {
-            pathElements = path.dirname( p ).split( '/' );//path.sep );
+            pathElements = path.dirname( _path ).split( '/' );//path.sep );
             targetFolderDepth = existFolderDepth = pathElements.length;
             checkFolderExist();
         };
@@ -241,7 +255,7 @@ function write( options, callback ){
     };
 
 /** File の作られた日時の確認 */
-    function onFileReadDispatcher( e ){
+    function onReadFile( e ){
         switch( e.type ){
             case 'readFileSuccess' :
                 if( e.stats.mtime.getTime() < writeIfOld ){
@@ -256,11 +270,10 @@ function write( options, callback ){
                 break;
         };
     };
-    
 
 /** File の存在確認 */
     function createFile(){
-        fs.open( context.createPath( p ), 'w', onFileCreate );
+        fs.open( context.createPath( _path ), 'w', onFileCreate );
     };
 
     function onFileCreate( err, fd ){

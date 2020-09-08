@@ -2,7 +2,7 @@
 (function (root, factory) {
   if (typeof define === 'function' && define.amd) {
     // AMD
-    define([], factory);
+    define([ 'cheerio' ], factory);
   } else if (typeof exports === 'object') {
     // commonjs
     module.exports = factory();
@@ -10,13 +10,23 @@
     // Browser globals
     root[ 'nicePageBuilder' ] = factory;
   }
-})(this, function () {
+})(this, function ( cheerio ) {
 
 "use strict";
 
-var pages, templetes, mixins, jsons, finished, extraPages,
+if (typeof define === 'function' && define.amd) {
+    // AMD
+} else if (typeof exports === 'object') {
+    // commonjs
+    cheerio = require( 'cheerio' );
+} else {
+    // Browser globals
+    cheerio = this.cheerio;
+};
+
+var pages, externalJs, templetes, mixins, jsons, finished, extraPages,
     onBeforeBuildFunctions,
-    buildStarted, skipAddToPages, createdByUserScript,
+    buildStarted, skipResisterAsPage, createdByUserScript,
     Page, createPageClassNow;
 
 // 継承して使う
@@ -33,8 +43,8 @@ function PageBase( path, createTime, updatedTime ){
   this.MODIFIED_AT = updatedTime  || (new Date).getTime();
   this.UPDATED_AT  = updatedTime  || (new Date).getTime();
 
-  if( skipAddToPages ){
-    skipAddToPages = false;
+  if( skipResisterAsPage ){
+    skipResisterAsPage = false;
     templetes[ path ] = this;
     if( pages[ path ] ) delete pages[ path ];
   } else if( createdByUserScript ){
@@ -71,6 +81,7 @@ reset();
  * 
  */
 function reset(){
+  externalJs = {};
   templetes  = {};
   pages      = {};
   extraPages = {};
@@ -96,9 +107,16 @@ function reset(){
  * 
  */
 function readHTML(path, htmlString, createTime, updatedTime ){
-  var mixin, ary, page, ret = [], i = -1;
+  var mixin, ary, page, ret = [], i = -1, bbf, $;
 
-  if( mixins[ path ] ){
+  if( externalJs[ path ] ){
+    externalJs[ path ] = htmlString;
+    for( ; bbf = onBeforeBuildFunctions[ ++i ]; ){
+        if( bbf.src === path ){
+            bbf.funcitonString = htmlString;
+        };
+    };
+  } else if( mixins[ path ] ){
     mixin = toObjectByEval( htmlString );
     if( typeof mixin === 'object' ){
       mixins[ path ]   = mixin;
@@ -121,7 +139,7 @@ function readHTML(path, htmlString, createTime, updatedTime ){
   } else {
     if( templetes[ path ] ){
         if( templetes[ path ] !== true ) return;
-        skipAddToPages = true;
+        skipResisterAsPage = true;
         page = new Page( path, createTime, updatedTime );
     } else if( !pages[ path ] ){
         page = new Page( path, createTime, updatedTime );
@@ -129,21 +147,37 @@ function readHTML(path, htmlString, createTime, updatedTime ){
       return;
     };
  
+    $ = cheerio.load( htmlString, { /* decodeEntities : false, */ _useHtmlParser2 : true } )
+
     // <script type="nice-page-builder/object" for="page-option"></script> の評価
-    htmlString = splitString( htmlString, '<script type="nice-page-builder/object" for="page-option">', '</script>', function( code ){
-        var obj = toObjectByEval( code ), k;
+    $.root().find( 'script[type="nice-page-builder/object"][for="page-option"]' ).each(function(){
+        var $script = $( this ), obj = toObjectByEval( $script.html() ), k;
 
         for(k in obj) if(!(k in page)) page[k] = obj[k];
-        return '';
-    } );
+
+        $script.remove();
+    });
 
     // <script type="nice-page-builder/js" for="beforeBuild"></script> の回収
-    htmlString = splitString( htmlString, '<script type="nice-page-builder/js" for="beforeBuild">', '</script>', function( code ){
-        onBeforeBuildFunctions.push( { context : page, funcitonString : code } );
-        return '';
-    } );
+    $.root().find( 'script[type="nice-page-builder/js"][for="beforeBuild"]' ).each(function(){
+        var $script = $( this ), src = $script.attr( 'src' ), code = $script.html();
 
-    page.CONTENT = htmlString;
+        if( src ){
+            src = toProjectRootRelativePath( src, page.FOLDER_PATH );
+            if( !( code = externalJs[ src ] ) ){
+                externalJs[ src ] = true;
+                ret.push( src );
+                onBeforeBuildFunctions.push( { context : page, src : src } );
+            } else {
+                onBeforeBuildFunctions.push( { context : page, funcitonString : code } );
+            };
+        } else if( code ){
+            onBeforeBuildFunctions.push( { context : page, funcitonString : code } );
+        };
+        $script.remove();
+    });
+
+    page.CONTENT = $.html( { decodeEntities : false } );
 
     // MIXIN の要求は重複しない
     if( page.MIXINS ){
@@ -209,7 +243,7 @@ function beforeBuild(){
 };
 
 function mergeMixinsAndTemplete( page ){
-  var i = -1, _mixins, path, mixin, k, tmpl;
+  var i = -1, _mixins, path, mixin, tmpl;
 
   if( _mixins = page.MIXINS ){
       while( path = _mixins[ ++i ] ){
@@ -237,7 +271,7 @@ function mergeMixinsAndTemplete( page ){
  * 3. 書き出し
  */
 function build(){
-  var path, page, updated, tmpl, k, html, last;
+  var path, page, updated, tmpl, html, last;
   
   if( !buildStarted ) beforeBuild();
 
