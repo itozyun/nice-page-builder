@@ -1,7 +1,8 @@
 .vscode/**
 typings/**
 test/**
-node_modules
+# node_modules
+package-lock.json
 .gitignore
 jsconfig.json
 vsc-extension-quickstart.md

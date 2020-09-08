@@ -2,7 +2,7 @@
 (function (root, factory) {
   if (typeof define === 'function' && define.amd) {
     // AMD
-    define([ 'cheerio' ], factory);
+    define([], factory);
   } else if (typeof exports === 'object') {
     // commonjs
     module.exports = factory();
@@ -10,19 +10,9 @@
     // Browser globals
     root[ 'nicePageBuilder' ] = factory;
   }
-})(this, function ( cheerio ) {
+})(this, function(){
 
 "use strict";
-
-if (typeof define === 'function' && define.amd) {
-    // AMD
-} else if (typeof exports === 'object') {
-    // commonjs
-    cheerio = require( 'cheerio' );
-} else {
-    // Browser globals
-    cheerio = this.cheerio;
-};
 
 var pages, externalJs, templetes, mixins, jsons, finished, extraPages,
     onBeforeBuildFunctions,
@@ -107,7 +97,7 @@ function reset(){
  * 
  */
 function readHTML(path, htmlString, createTime, updatedTime ){
-  var mixin, ary, page, ret = [], i = -1, bbf, $;
+  var mixin, ary, page, ret = [], i = -1, bbf;
 
   if( externalJs[ path ] ){
     externalJs[ path ] = htmlString;
@@ -147,37 +137,21 @@ function readHTML(path, htmlString, createTime, updatedTime ){
       return;
     };
  
-    $ = cheerio.load( htmlString, { /* decodeEntities : false, */ _useHtmlParser2 : true } )
-
     // <script type="nice-page-builder/object" for="page-option"></script> の評価
-    $.root().find( 'script[type="nice-page-builder/object"][for="page-option"]' ).each(function(){
-        var $script = $( this ), obj = toObjectByEval( $script.html() ), k;
+    htmlString = splitString( htmlString, '<script type="nice-page-builder/object" for="page-option">', '</script>', function( code ){
+        var obj = toObjectByEval( code ), k;
 
         for(k in obj) if(!(k in page)) page[k] = obj[k];
-
-        $script.remove();
-    });
+        return '';
+    } );
 
     // <script type="nice-page-builder/js" for="beforeBuild"></script> の回収
-    $.root().find( 'script[type="nice-page-builder/js"][for="beforeBuild"]' ).each(function(){
-        var $script = $( this ), src = $script.attr( 'src' ), code = $script.html();
+    htmlString = splitString( htmlString, '<script type="nice-page-builder/js" for="beforeBuild">', '</script>', function( code ){
+        onBeforeBuildFunctions.push( { context : page, funcitonString : code } );
+        return '';
+    } );
 
-        if( src ){
-            src = toProjectRootRelativePath( src, page.FOLDER_PATH );
-            if( !( code = externalJs[ src ] ) ){
-                externalJs[ src ] = true;
-                ret.push( src );
-                onBeforeBuildFunctions.push( { context : page, src : src } );
-            } else {
-                onBeforeBuildFunctions.push( { context : page, funcitonString : code } );
-            };
-        } else if( code ){
-            onBeforeBuildFunctions.push( { context : page, funcitonString : code } );
-        };
-        $script.remove();
-    });
-
-    page.CONTENT = $.html( { decodeEntities : false } );
+    page.CONTENT = htmlString;
 
     // MIXIN の要求は重複しない
     if( page.MIXINS ){
