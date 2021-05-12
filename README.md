@@ -1,5 +1,11 @@
 # Nice Page builder
 
+<strong>Development is finished!</strong> Please use the [successor gulp plugin](https://github.com/itozyun/gulp-nice-page-builder).
+
+---
+
+<strong>開発を終了しました！</strong>[後継の gulp プラグイン](https://github.com/itozyun/gulp-nice-page-builder)をご利用ください。
+
 ![](https://4.bp.blogspot.com/-_jS4oD7mDQ8/WJFq8Z7sZ-I/AAAAAAAARP0/SJJHoRWJ37cwdBuO2pvuHQ_rY3GI1nIHQCLcB/s800/NicePageBuilder_package.jpg "")
 
 Static site generator on Visual Studio Code extension.
